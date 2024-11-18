@@ -26,7 +26,7 @@ A configurable automated trading bot that executes trades across multiple blockc
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd multichain-trading-bot
+cd EVM-Volume-bot
 ```
 
 2. Install dependencies:
