@@ -9,7 +9,7 @@ const WETH_ABI = require("./abis/weth.json");
 const QUAD_MAINNET_ABI = require("./abis/quad_mainnet.json");
 const QUAD_BASE_ABI = require("./abis/quad_base.json");
 
-// Chain-specific configurations
+
 const CHAIN_CONFIG = {
   mainnet: {
     id: 1,
@@ -53,7 +53,7 @@ const CHAIN_CONFIG = {
 
 const GLOBAL_CONFIG = {
   RANDOM_VARIANCE: 0.01,
-  MIN_ETH_BALANCE: 0.01,
+  MIN_ETH_BALANCE: 0.001,
   ACTIVE_WALLET_PERCENTAGE: 0.7,
   RETRY_DELAY: 60000,
   CHECK_INTERVAL: 30000,
@@ -69,7 +69,7 @@ class MultiChainTradingBot {
 
     this.provider = new ethers.providers.JsonRpcProvider(this.chainConfig.rpcUrl);
     this.mainnetProvider = new ethers.providers.JsonRpcProvider(CHAIN_CONFIG.mainnet.rpcUrl);
-    
+
     // Initialize main wallet
     this.mainWallet = new ethers.Wallet(mainWalletPrivateKey, this.provider);
     this.tempWalletCount = tempWalletCount;
@@ -96,7 +96,7 @@ class MultiChainTradingBot {
 
       this.targetTokenContract = new ethers.Contract(
         this.chainConfig.contracts.targetToken,
-        QUAD_BASE_ABI,
+        QUAD_MAINNET_ABI,
         this.provider
       );
     }
@@ -236,7 +236,12 @@ class MultiChainTradingBot {
       const ethBalanceNum = Number(ethers.utils.formatEther(ethBalance));
       const tokenBalanceNum = Number(ethers.utils.formatEther(tokenBalance));
 
+      // console.log("ethBalanceNum: ", ethBalanceNum);
+      // console.log("tokenBalanceNum: ", tokenBalanceNum);
+
       const tradeAmount = this.generateRandomAmount();
+
+      // console.log("tradeAmount: ", tradeAmount);
 
       if (ethBalanceNum < (tradeAmount + GLOBAL_CONFIG.MIN_ETH_BALANCE)) {
         console.log(`Insufficient ETH balance in wallet ${wallet.address}`);
@@ -245,17 +250,22 @@ class MultiChainTradingBot {
 
       const canSell = tokenBalanceNum > 0;
       const isBuy = !canSell || Math.random() > 0.5;
+      // const isBuy = !canSell
+      // console.log("isBuy: ", isBuy);
 
       const gasPrice = await this.provider.getGasPrice();
       const adjustedGasPrice = gasPrice.mul(Math.floor(this.chainConfig.tradingParams.gasMultiplier * 100)).div(100);
 
+      // console.log("gasPrice: ", ethers.utils.parseEther(gasPrice.toString()));
+      // console.log("adjustedGasPrice: ", ethers.utils.parseEther(adjustedGasPrice.toString()));
+      
       if (isBuy) {
         await this.buyTokensWithETH(wallet, tradeAmount, adjustedGasPrice);
       } else {
         await this.sellTokensForETH(wallet, tokenBalanceNum, adjustedGasPrice);
         // After selling, return excess ETH to main wallet
         await this.returnFundsToMain(walletInfo);
-      }
+     }
 
       walletInfo.lastTradeTime = Date.now();
       console.log(`[${this.chainConfig.name}] Trade executed for wallet ${wallet.address}: ${isBuy ? 'BUY' : 'SELL'} ${tradeAmount} ETH`);
@@ -267,7 +277,8 @@ class MultiChainTradingBot {
   async buyTokensWithETH(wallet, amountETH, gasPrice) {
     const path = [this.chainConfig.contracts.weth, this.chainConfig.contracts.targetToken];
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
-    const amountInWei = ethers.utils.parseEther(amountETH.toString());
+
+    const amountInWei = ethers.utils.parseEther(amountETH.toFixed(18));
 
     const expectedOutput = await this.calculateSlippage(amountInWei, path);
     const minOut = expectedOutput ?
@@ -292,8 +303,10 @@ class MultiChainTradingBot {
   async sellTokensForETH(wallet, availableAmount, gasPrice) {
     const sellPercentage = 0.3 + Math.random() * 0.4;
     const amountToSell = availableAmount * sellPercentage;
-    const amountIn = ethers.utils.parseEther(amountToSell.toString());
 
+    // console.log("amountToSell" , amountToSell);
+    const amountIn = ethers.utils.parseEther(amountToSell.toFixed(18));
+    // console.log("amountIn" , amountIn);
     await this.targetTokenContract.connect(wallet).approve(
       this.chainConfig.contracts.router,
       amountIn
@@ -303,10 +316,13 @@ class MultiChainTradingBot {
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
 
     const expectedOutput = await this.calculateSlippage(amountIn, path);
+    // console.log("expectedOutput" , expectedOutput);
     const minOut = expectedOutput ?
-      ethers.utils.parseEther((Number(expectedOutput) * 0.95).toString()) :
+      ethers.utils.parseEther((Number(expectedOutput) * 0.95).toFixed(18)) :
       0;
-
+    // console.log("minOut" , minOut);
+    const nonce = await wallet.getTransactionCount("latest") + 1;
+    // console.log('nonce:', nonce)
     const tx = await this.uniswapRouter.connect(wallet).swapExactTokensForETH(
       amountIn,
       minOut,
@@ -315,7 +331,8 @@ class MultiChainTradingBot {
       deadline,
       {
         gasLimit: 300000,
-        gasPrice
+        gasPrice,
+        nonce
       }
     );
 
