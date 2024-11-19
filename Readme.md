@@ -1,4 +1,4 @@
-# MultiChain Trading Bot
+# MultiChain Volume Bot
 
 A configurable automated trading bot that executes trades across multiple blockchain networks (Ethereum Mainnet and Base) using Uniswap. The bot creates and manages multiple temporary wallets to distribute trading activity and implements various safety features like gas price checks and slippage protection.
 
@@ -26,7 +26,7 @@ A configurable automated trading bot that executes trades across multiple blockc
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd multichain-trading-bot
+cd EVM-Volume-bot
 ```
 
 2. Install dependencies:
